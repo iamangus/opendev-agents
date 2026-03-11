@@ -196,6 +196,7 @@ func (rt *Runtime) executeTool(ctx context.Context, tc llm.ToolCall, toolMap map
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &params); err != nil {
 			return "", fmt.Errorf("parse agent call input: %w", err)
 		}
+		slog.Info("tool call: agent", "agent", ref.agentDef.Name, "input_len", len(params.Message))
 		return rt.Run(ctx, ref.agentDef, params.Message)
 	}
 
@@ -204,6 +205,8 @@ func (rt *Runtime) executeTool(ctx context.Context, tc llm.ToolCall, toolMap map
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		return "", fmt.Errorf("parse tool arguments: %w", err)
 	}
+
+	slog.Info("tool call: mcp", "server", ref.serverName, "tool", ref.toolName, "args", args)
 
 	result, err := rt.pool.CallTool(ctx, ref.serverName, ref.toolName, args)
 	if err != nil {
@@ -214,6 +217,7 @@ func (rt *Runtime) executeTool(ctx context.Context, tc llm.ToolCall, toolMap map
 		return "", fmt.Errorf("tool returned error: %s", extractText(result))
 	}
 
+	slog.Info("tool call: mcp completed", "server", ref.serverName, "tool", ref.toolName, "result_len", len(extractText(result)))
 	return extractText(result), nil
 }
 
