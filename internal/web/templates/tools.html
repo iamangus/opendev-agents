@@ -19,10 +19,15 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      transition: background 0.15s;
+      transition: background 0.15s, border-color 0.15s;
+      cursor: pointer;
     }
     .tool-card:hover {
       background: hsl(var(--muted) / 0.6);
+    }
+    .tool-card:has(input[type="checkbox"]:checked) {
+      background: hsl(var(--primary) / 0.12);
+      border-color: hsl(var(--primary) / 0.5);
     }
     .tool-name {
       font-size: 13px;
@@ -48,7 +53,44 @@
       padding: 2px 8px;
       margin-bottom: 6px;
     }
+    .tool-checkbox {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      accent-color: hsl(var(--primary));
+      cursor: pointer;
+    }
+    .yaml-output {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      resize: vertical;
+      border-radius: 8px;
+      padding: 10px 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
   </style>
+  <script>
+    function copyToolYaml(btn) {
+      var ta = document.getElementById('tool-yaml-output');
+      if (!ta) return;
+      navigator.clipboard.writeText(ta.value).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+      }).catch(function() {
+        ta.select();
+        document.execCommand('copy');
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+    function clearToolSelection() {
+      document.querySelectorAll('#tool-select-form input[type=checkbox]').forEach(function(c) { c.checked = false; });
+      document.getElementById('tool-generate-result').innerHTML = '';
+    }
+  </script>
 </head>
 <body class="bg-background text-foreground flex flex-col min-h-screen">
 
@@ -59,7 +101,7 @@
     <div>
       <h1 class="text-base font-semibold">Registered Tools</h1>
       <p class="text-xs text-muted-foreground mt-0.5">
-        MCP tools discovered from connected servers. Refreshes automatically every 30 seconds.
+        MCP tools discovered from connected servers. Select tools below to generate a config snippet.
       </p>
     </div>
     <button
@@ -77,14 +119,45 @@
     </button>
   </div>
 
-  <div
-    id="tool-list"
-    hx-get="/tools/list"
-    hx-trigger="every 30s"
+  <form
+    id="tool-select-form"
+    hx-post="/tools/generate"
+    hx-target="#tool-generate-result"
     hx-swap="innerHTML"
   >
-    {{template "tool-list" .}}
-  </div>
+    <div id="tool-list">
+      {{template "tool-list" .}}
+    </div>
+
+    <div class="flex items-center justify-between mt-6 mb-4">
+      <p class="text-xs text-muted-foreground">
+        Check the tools you want, then click <strong>Generate Tool List</strong>.
+      </p>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="uk-button uk-button-default text-xs"
+          style="border-radius: 6px; padding: 4px 12px; font-size: 12px;"
+          onclick="clearToolSelection()"
+        >
+          Clear
+        </button>
+        <button
+          type="submit"
+          class="uk-button uk-button-primary text-xs"
+          style="border-radius: 6px; padding: 4px 12px; font-size: 12px;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline; margin-right:4px; vertical-align: -1px;">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+          Generate Tool List
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <div id="tool-generate-result"></div>
 </div>
 
 </body>
@@ -109,15 +182,26 @@
     </div>
     <div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
       {{range .Tools}}
-      <div class="tool-card">
-        <span class="tool-name">{{.Name}}</span>
-        {{if .Description}}
-        <span class="tool-desc">{{.Description}}</span>
-        {{else}}
-        <span class="tool-desc text-muted-foreground/50 italic">No description</span>
-        {{end}}
-        <span class="text-xs text-muted-foreground/60 mt-1 font-mono">{{.QualifiedName}}</span>
-      </div>
+      <label class="tool-card" for="tool-chk-{{.QualifiedName}}">
+        <div class="flex items-start gap-2">
+          <input
+            type="checkbox"
+            id="tool-chk-{{.QualifiedName}}"
+            name="tool"
+            value="{{.QualifiedName}}"
+            class="tool-checkbox"
+          />
+          <div class="flex flex-col gap-1 min-w-0">
+            <span class="tool-name">{{.Name}}</span>
+            {{if .Description}}
+            <span class="tool-desc">{{.Description}}</span>
+            {{else}}
+            <span class="tool-desc text-muted-foreground/50 italic">No description</span>
+            {{end}}
+            <span class="text-xs text-muted-foreground/60 mt-1 font-mono">{{.QualifiedName}}</span>
+          </div>
+        </div>
+      </label>
       {{end}}
     </div>
   </div>
@@ -130,6 +214,38 @@
     Connect MCP servers in your <code class="font-mono bg-muted px-1 rounded">agentfile.yaml</code>
     to discover and use external tools.
   </p>
+</div>
+{{end}}
+{{end}}
+
+{{define "tool-generate-result"}}
+{{if eq .Selected 0}}
+<div class="flex flex-col items-center justify-center py-10 text-center border border-dashed rounded-lg" style="border-color: hsl(var(--border));">
+  <p class="text-sm font-medium text-foreground mb-1">No tools selected</p>
+  <p class="text-xs text-muted-foreground">Check at least one tool above and click <strong>Generate Tool List</strong>.</p>
+</div>
+{{else}}
+<div class="border rounded-lg overflow-hidden" style="border-color: hsl(var(--border));">
+  <div class="flex items-center justify-between px-4 py-2 border-b" style="border-color: hsl(var(--border)); background: hsl(var(--muted) / 0.3);">
+    <span class="text-xs font-medium">
+      Generated tool list — {{.Selected}} tool{{if ne .Selected 1}}s{{end}} selected
+    </span>
+    <button
+      type="button"
+      class="uk-button uk-button-default text-xs"
+      style="border-radius: 5px; padding: 2px 10px; font-size: 11px;"
+      onclick="copyToolYaml(this)"
+    >Copy</button>
+  </div>
+  <div class="p-3">
+    <textarea
+      id="tool-yaml-output"
+      class="uk-textarea yaml-output"
+      rows="{{.Lines}}"
+      readonly
+      spellcheck="false"
+    >{{.YAML}}</textarea>
+  </div>
 </div>
 {{end}}
 {{end}}

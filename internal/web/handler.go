@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -184,6 +185,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /agents/{name}", h.deleteAgentWeb)
 	mux.HandleFunc("GET /tools", h.toolsPage)
 	mux.HandleFunc("GET /tools/list", h.toolListPartial)
+	mux.HandleFunc("POST /tools/generate", h.toolGeneratePartial)
 	slog.Info("web UI routes registered")
 }
 
@@ -633,6 +635,38 @@ func (h *Handler) buildServerTools() []serverTools {
 	}
 	sort.Slice(servers, func(i, j int) bool { return servers[i].Name < servers[j].Name })
 	return servers
+}
+
+// toolGenerateData is the view-model for the generated tool list partial.
+type toolGenerateData struct {
+	YAML     string
+	Selected int
+	Lines    int
+}
+
+func (h *Handler) toolGeneratePartial(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	tools := r.Form["tool"]
+	sort.Strings(tools)
+
+	var buf strings.Builder
+	if len(tools) > 0 {
+		buf.WriteString("tools:\n")
+		for _, t := range tools {
+			buf.WriteString("  - ")
+			buf.WriteString(t)
+			buf.WriteString("\n")
+		}
+	}
+
+	h.renderPartial(w, "tool-generate-result", toolGenerateData{
+		YAML:     buf.String(),
+		Selected: len(tools),
+		Lines:    len(tools) + 1, // header line + one per tool
+	})
 }
 
 // --- helpers ---
