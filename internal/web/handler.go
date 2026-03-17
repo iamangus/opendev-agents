@@ -16,6 +16,7 @@ import (
 	"github.com/angoo/agentfile/internal/config"
 	"github.com/angoo/agentfile/internal/llm"
 	"github.com/angoo/agentfile/internal/mcpclient"
+	yamlpkg "gopkg.in/yaml.v3"
 )
 
 //go:embed templates/*.html
@@ -181,7 +182,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /chat/runs/{id}/events", h.runEvents)
 	mux.HandleFunc("GET /agents", h.agentsPage)
 	mux.HandleFunc("GET /agents/list", h.agentListPartial)
+	mux.HandleFunc("GET /agents/new", h.newAgentEditor)
 	mux.HandleFunc("GET /agents/{name}/edit", h.agentEditPartial)
+	mux.HandleFunc("POST /agents/yaml", h.createAgentYaml)
 	mux.HandleFunc("POST /agents", h.createAgentForm)
 	mux.HandleFunc("PUT /agents/{name}/yaml", h.saveAgentYaml)
 	mux.HandleFunc("DELETE /agents/{name}", h.deleteAgentWeb)
@@ -561,6 +564,37 @@ func (h *Handler) createAgentForm(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated agent list partial.
 	h.renderPartial(w, "agent-list-items", agentsPageData{Agents: h.store.ListDefinitions()})
+}
+
+// newAgentEditor renders a blank YAML editor for creating a new agent.
+func (h *Handler) newAgentEditor(w http.ResponseWriter, r *http.Request) {
+	h.renderPartial(w, "agent-editor-new", nil)
+}
+
+// createAgentYaml handles creating a new agent from raw YAML pasted into the blank editor.
+func (h *Handler) createAgentYaml(w http.ResponseWriter, r *http.Request) {
+	rawYAML := r.FormValue("yaml")
+	if rawYAML == "" {
+		http.Error(w, "yaml is required", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.SaveRawDefinition("", []byte(rawYAML)); err != nil {
+		slog.Error("failed to create agent from yaml", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Parse name from the saved YAML to load the editor for the new agent.
+	var def config.Definition
+	if err := yamlpkg.Unmarshal([]byte(rawYAML), &def); err != nil || def.Name == "" {
+		// Fall back to just refreshing the agent list.
+		h.renderPartial(w, "agent-list-items", agentsPageData{Agents: h.store.ListDefinitions()})
+		return
+	}
+	raw, _ := h.store.GetRawDefinition(def.Name)
+	h.renderPartial(w, "save-yaml-response", saveYamlData{
+		Editor: agentEditorData{Name: def.Name, RawYAML: string(raw)},
+		Agents: h.store.ListDefinitions(),
+	})
 }
 
 // saveAgentYaml handles form-based YAML save from the web UI.

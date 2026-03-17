@@ -130,10 +130,11 @@ func (rl *RunLog) Turn(n int) {
 	rl.writeln(fmt.Sprintf("\n--- TURN %d ---", n))
 }
 
-// Request logs the full JSON payload sent to the LLM.
+// Request logs the JSON payload sent to the LLM, excluding the tools field
+// to keep log files concise.
 func (rl *RunLog) Request(rawJSON []byte) {
 	rl.writeln("\n[REQUEST →]")
-	rl.writeln(indent(prettyJSONBytes(rawJSON), "  "))
+	rl.writeln(indent(prettyJSONBytes(stripTools(rawJSON)), "  "))
 }
 
 // Response logs the full JSON payload received from the LLM.
@@ -162,6 +163,21 @@ func (rl *RunLog) Failed(err error) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// stripTools removes the "tools" key from a JSON object byte slice.
+// If the input is not a valid JSON object, it is returned unchanged.
+func stripTools(b []byte) []byte {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return b
+	}
+	delete(obj, "tools")
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return b
+	}
+	return out
+}
 
 // indent prefixes every line of s with the given prefix string.
 func indent(s, prefix string) string {
