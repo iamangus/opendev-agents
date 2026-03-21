@@ -68,6 +68,89 @@
     .tool-call-success { border-left: 3px solid hsl(142 76% 36%); }
     .tool-call-error { border-left: 3px solid hsl(var(--destructive)); }
 
+    .json-tree-container {
+      background: hsl(var(--muted) / 0.3);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow: auto;
+    }
+    .json-tree-container .jv-key { color: hsl(var(--foreground)); }
+    .json-tree-container .jv-string { color: hsl(150 60% 45%); }
+    .json-tree-container .jv-number { color: hsl(200 80% 50%); }
+    .json-tree-container .jv-boolean { color: hsl(280 70% 60%); }
+    .json-tree-container .jv-null { color: hsl(var(--muted-foreground)); }
+    .json-tree-container .jv-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-right: 2px;
+      border-radius: 3px;
+      transition: transform 0.15s;
+    }
+    .json-tree-container .jv-toggle:hover { background: hsl(var(--muted)); }
+    .json-tree-container .jv-toggle::before {
+      content: '▶';
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    .json-tree-container .jv-toggle.jv-open::before {
+      transform: rotate(90deg);
+    }
+    .json-tree-container .jv-children {
+      padding-left: 18px;
+    }
+    .json-tree-container .jv-item { margin: 2px 0; }
+
+    .json-block {
+      background: hsl(var(--muted) / 0.3);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .json-tree-container .jv-key { color: hsl(var(--foreground)); }
+    .json-tree-container .jv-string { color: hsl(150 60% 45%); }
+    .json-tree-container .jv-number { color: hsl(200 80% 50%); }
+    .json-tree-container .jv-boolean { color: hsl(280 70% 60%); }
+    .json-tree-container .jv-null { color: hsl(var(--muted-foreground)); }
+    .json-tree-container .jv-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-right: 2px;
+      border-radius: 3px;
+      transition: transform 0.15s;
+    }
+    .json-tree-container .jv-toggle:hover { background: hsl(var(--muted)); }
+    .json-tree-container .jv-toggle::before {
+      content: '▶';
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    .json-tree-container .jv-toggle.jv-open::before {
+      transform: rotate(90deg);
+    }
+    .json-tree-container .jv-children {
+      padding-left: 18px;
+    }
+    .json-tree-container .jv-item { margin: 2px 0; }
+
     .json-block {
       background: hsl(var(--muted) / 0.3);
       border-radius: 6px;
@@ -193,6 +276,7 @@
   </main>
 </div>
 
+{{template "json-tree-script" .}}
 </body>
 </html>
 {{end}}
@@ -291,7 +375,7 @@
               <span class="text-xs font-semibold text-muted-foreground">REQUEST →</span>
             </div>
             <div class="collapsible-content">
-              <div class="json-block">{{$turn.Request}}</div>
+              <div class="json-tree-container" data-json="{{$turn.Request}}"></div>
             </div>
           </div>
           {{end}}
@@ -306,7 +390,22 @@
               <span class="text-xs font-semibold text-muted-foreground">← RESPONSE</span>
             </div>
             <div class="collapsible-content">
-              <div class="json-block">{{$turn.Response}}</div>
+              <div class="json-tree-container" data-json="{{$turn.Response}}"></div>
+            </div>
+          </div>
+          {{end}}
+
+          <!-- Response -->
+          {{if $turn.Response}}
+          <div class="mb-3 collapsible" onclick="this.classList.toggle('open')">
+            <div class="collapsible-header">
+              <svg class="chevron w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+              <span class="text-xs font-semibold text-muted-foreground">← RESPONSE</span>
+            </div>
+            <div class="collapsible-content">
+              <div class="json-tree-container" data-json="{{$turn.Response}}"></div>
             </div>
           </div>
           {{end}}
@@ -334,7 +433,7 @@
                   Arguments
                 </div>
                 <div class="collapsible-content">
-                  <div class="json-block text-xs">{{.Arguments}}</div>
+                  <div class="json-tree-container text-xs" data-json="{{.Arguments}}"></div>
                 </div>
               </div>
               {{end}}
@@ -348,7 +447,21 @@
                   Result
                 </div>
                 <div class="collapsible-content">
-                  <div class="json-block text-xs">{{truncate .Result 5000}}</div>
+                  <div class="json-tree-container text-xs" data-json="{{truncate .Result 5000}}"></div>
+                </div>
+              </div>
+              {{end}}
+
+              {{if .Result}}
+              <div class="collapsible mt-2" onclick="this.classList.toggle('open')">
+                <div class="collapsible-header text-xs text-muted-foreground">
+                  <svg class="chevron w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  Result
+                </div>
+                <div class="collapsible-content">
+                  <div class="json-tree-container text-xs" data-json="{{truncate .Result 5000}}"></div>
                 </div>
               </div>
               {{end}}
@@ -385,4 +498,145 @@
     {{end}}
   </div>
 </div>
+{{end}}
+
+{{define "json-tree-script"}}
+<script>
+(function() {
+  function renderJsonTree(container, data, depth) {
+    depth = depth || 0;
+    if (depth > 50) return document.createTextNode('...');
+
+    var type = typeof data;
+    if (data === null) {
+      var span = document.createElement('span');
+      span.className = 'jv-null';
+      span.textContent = 'null';
+      return span;
+    }
+    if (type === 'string') {
+      var span = document.createElement('span');
+      span.className = 'jv-string';
+      span.textContent = '"' + data.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+      return span;
+    }
+    if (type === 'number') {
+      var span = document.createElement('span');
+      span.className = 'jv-number';
+      span.textContent = data;
+      return span;
+    }
+    if (type === 'boolean') {
+      var span = document.createElement('span');
+      span.className = 'jv-boolean';
+      span.textContent = data;
+      return span;
+    }
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        var span = document.createElement('span');
+        span.textContent = '[]';
+        return span;
+      }
+      var wrapper = document.createElement('div');
+      wrapper.className = 'jv-item';
+
+      var toggle = document.createElement('span');
+      toggle.className = 'jv-toggle jv-open';
+      toggle.onclick = function(e) {
+        e.stopPropagation();
+        this.classList.toggle('jv-open');
+        var children = this.nextSibling;
+        if (children) children.style.display = children.style.display === 'none' ? 'block' : 'none';
+      };
+
+      var label = document.createElement('span');
+      label.textContent = 'Array[' + data.length + ']';
+
+      var children = document.createElement('div');
+      children.className = 'jv-children';
+      data.forEach(function(item, i) {
+        var child = document.createElement('div');
+        child.className = 'jv-item';
+        var idx = document.createElement('span');
+        idx.textContent = i + ': ';
+        idx.style.color = 'hsl(var(--muted-foreground))';
+        child.appendChild(idx);
+        child.appendChild(renderJsonTree(container, item, depth + 1));
+        if (i < data.length - 1) child.appendChild(document.createTextNode(','));
+        children.appendChild(child);
+      });
+
+      wrapper.appendChild(toggle);
+      wrapper.appendChild(label);
+      wrapper.appendChild(children);
+      return wrapper;
+    }
+    if (type === 'object') {
+      var keys = Object.keys(data);
+      if (keys.length === 0) {
+        var span = document.createElement('span');
+        span.textContent = '{}';
+        return span;
+      }
+      var wrapper = document.createElement('div');
+      wrapper.className = 'jv-item';
+
+      var toggle = document.createElement('span');
+      toggle.className = 'jv-toggle jv-open';
+      toggle.onclick = function(e) {
+        e.stopPropagation();
+        this.classList.toggle('jv-open');
+        var children = this.nextSibling;
+        if (children) children.style.display = children.style.display === 'none' ? 'block' : 'none';
+      };
+
+      var label = document.createElement('span');
+      label.textContent = 'Object{' + keys.length + '}';
+
+      var children = document.createElement('div');
+      children.className = 'jv-children';
+      keys.forEach(function(key, i) {
+        var child = document.createElement('div');
+        child.className = 'jv-item';
+        var keySpan = document.createElement('span');
+        keySpan.className = 'jv-key';
+        keySpan.textContent = key + ': ';
+        child.appendChild(keySpan);
+        child.appendChild(renderJsonTree(container, data[key], depth + 1));
+        if (i < keys.length - 1) child.appendChild(document.createTextNode(','));
+        children.appendChild(child);
+      });
+
+      wrapper.appendChild(toggle);
+      wrapper.appendChild(label);
+      wrapper.appendChild(children);
+      return wrapper;
+    }
+    return document.createTextNode(String(data));
+  }
+
+  function initJsonTrees() {
+    document.querySelectorAll('.json-tree-container[data-json]').forEach(function(container) {
+      if (container.dataset.initialized) return;
+      container.dataset.initialized = 'true';
+      try {
+        var data = JSON.parse(container.dataset.json);
+        container.innerHTML = '';
+        container.appendChild(renderJsonTree(container, data, 0));
+      } catch (e) {
+        container.textContent = container.dataset.json;
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initJsonTrees);
+  } else {
+    initJsonTrees();
+  }
+
+  document.body.addEventListener('htmx:afterSwap', initJsonTrees);
+})();
+</script>
 {{end}}
