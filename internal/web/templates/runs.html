@@ -199,7 +199,7 @@
 
 {{define "runs-list"}}
 {{range .Runs}}
-<a href="/runs/{{.ID}}" hx-get="/runs/{{.ID}}" hx-target=".main-content" hx-push-url="true" class="run-row {{if eq $.Run.ID .ID}}active{{end}}">
+<a href="/runs/{{.ID}}" hx-get="/runs/{{.ID}}" hx-target=".main-content" hx-push-url="true" class="run-row {{if eq $.SelectedRunID .ID}}active{{end}}">
   <div class="flex items-center justify-between mb-1">
     <span class="font-medium text-sm">{{.Agent}}</span>
     <span class="status-badge status-{{.Status}}">{{.Status}}</span>

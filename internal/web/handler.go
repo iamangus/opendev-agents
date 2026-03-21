@@ -778,11 +778,13 @@ func newID() string {
 // --- Runs page ---
 
 type runsPageData struct {
-	ActivePage   string
-	Runs         []*api.RunHistory
-	Agents       []string
-	AgentFilter  string
-	StatusFilter string
+	ActivePage    string
+	Runs          []*api.RunHistory
+	Agents        []string
+	AgentFilter   string
+	StatusFilter  string
+	SelectedRunID string
+	Run           *api.RunHistory
 }
 
 func (h *Handler) runsPage(w http.ResponseWriter, r *http.Request) {
@@ -822,11 +824,6 @@ func (h *Handler) runsListPartial(w http.ResponseWriter, r *http.Request) {
 	h.renderPartial(w, "runs-list", data)
 }
 
-type runDetailData struct {
-	ActivePage string
-	Run        *api.RunHistory
-}
-
 func (h *Handler) runDetailPage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	run := h.history.Get(id)
@@ -835,9 +832,15 @@ func (h *Handler) runDetailPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := runDetailData{
-		ActivePage: "runs",
-		Run:        run,
+	runs := h.history.List("", "")
+	agents := h.history.ListAgents()
+
+	data := runsPageData{
+		ActivePage:    "runs",
+		Runs:          runs,
+		Agents:        agents,
+		SelectedRunID: id,
+		Run:           run,
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -885,7 +888,7 @@ func (h *Handler) runHistoryEvents(w http.ResponseWriter, r *http.Request) {
 				lastStatus = run.Status
 				lastTurnCount = len(run.Turns)
 
-				data := runDetailData{Run: run}
+				data := runsPageData{Run: run}
 				var buf strings.Builder
 				if err := h.tmpl.ExecuteTemplate(&buf, "run-detail-content", data); err == nil {
 					sseData := strings.ReplaceAll(buf.String(), "\n", "\ndata: ")
