@@ -158,9 +158,10 @@ func (h *Handler) getStatus(w http.ResponseWriter, r *http.Request) {
 
 // runAgentRequest is the JSON body for POST /api/v1/agents/{name}/run.
 type runAgentRequest struct {
-	Message    string                   `json:"message"`
-	History    []llm.Message            `json:"history,omitempty"`
-	MCPServers []mcpclient.ServerConfig `json:"mcp_servers,omitempty"`
+	Message        string                   `json:"message"`
+	History        []llm.Message            `json:"history,omitempty"`
+	MCPServers     []mcpclient.ServerConfig `json:"mcp_servers,omitempty"`
+	ResponseSchema *config.StructuredOutput `json:"response_schema,omitempty"`
 }
 
 // runAgentResponse is the JSON body returned for a successfully queued run.
@@ -224,6 +225,7 @@ func (h *Handler) runAgent(w http.ResponseWriter, r *http.Request) {
 	defSnap := def
 	msgSnap := req.Message
 	historySnap := req.History
+	responseSchemaSnap := req.ResponseSchema
 
 	go func() {
 		defer func() {
@@ -244,7 +246,7 @@ func (h *Handler) runAgent(w http.ResponseWriter, r *http.Request) {
 			summaryAgentName: h.summaryAgentName,
 		}
 
-		result, _, err := h.agentRuntime.RunWithHistory(ctx, defSnap, msgSnap, nil, hr, nil, historySnap, ephemeral...)
+		result, _, err := h.agentRuntime.RunWithHistory(ctx, defSnap, msgSnap, nil, hr, responseSchemaSnap, historySnap, ephemeral...)
 		if err != nil {
 			if ctx.Err() != nil {
 				// Context was canceled externally (e.g. via POST /runs/{id}/cancel).
