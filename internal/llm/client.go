@@ -75,7 +75,16 @@ func NewOpenRouterClient(apiKey, defaultModel string) *OpenAIClient {
 
 // ResponseFormat instructs the model to produce output in a specific format.
 type ResponseFormat struct {
-	Type string `json:"type"` // "json_object"
+	Type       string      `json:"type"`
+	JSONSchema *JSONSchema `json:"json_schema,omitempty"`
+}
+
+// JSONSchema is the json_schema block within a ResponseFormat.
+// It mirrors the OpenAI structured outputs format exactly.
+type JSONSchema struct {
+	Name   string          `json:"name"`
+	Schema json.RawMessage `json:"schema"`
+	Strict bool            `json:"strict"`
 }
 
 // ChatRequest represents a chat completion request.
