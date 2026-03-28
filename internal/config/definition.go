@@ -11,6 +11,7 @@ type Definition struct {
 	Tools              []string `yaml:"tools,omitempty" json:"tools,omitempty"` // namespaced: "server.tool" or agent name
 	MaxTurns           int      `yaml:"max_turns,omitempty" json:"max_turns,omitempty"`
 	MaxConcurrentTools int      `yaml:"max_concurrent_tools,omitempty" json:"max_concurrent_tools,omitempty"`
+	ForceJSON          bool     `yaml:"force_json,omitempty" json:"force_json,omitempty"`
 }
 
 // Kind represents the type of definition.

@@ -73,11 +73,17 @@ func NewOpenRouterClient(apiKey, defaultModel string) *OpenAIClient {
 	})
 }
 
+// ResponseFormat instructs the model to produce output in a specific format.
+type ResponseFormat struct {
+	Type string `json:"type"` // "json_object"
+}
+
 // ChatRequest represents a chat completion request.
 type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Tools    []ToolDef `json:"tools,omitempty"`
+	Model          string          `json:"model"`
+	Messages       []Message       `json:"messages"`
+	Tools          []ToolDef       `json:"tools,omitempty"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 }
 
 // Message represents a chat message.

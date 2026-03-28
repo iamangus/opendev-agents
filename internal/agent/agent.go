@@ -155,6 +155,9 @@ func (rt *Runtime) RunWithHistory(ctx context.Context, def *config.Definition, u
 		if len(toolDefs) > 0 {
 			req.Tools = toolDefs
 		}
+		if def.ForceJSON {
+			req.ResponseFormat = &llm.ResponseFormat{Type: "json_object"}
+		}
 
 		// Log the exact JSON being sent to the LLM
 		var reqJSON []byte
