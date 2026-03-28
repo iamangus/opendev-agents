@@ -191,14 +191,6 @@ func (h *Handler) runAgent(w http.ResponseWriter, r *http.Request) {
 	runID := uuid.New().String()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Build tool list for history
-	toolNames := h.agentRuntime.GetToolNames(def, nil)
-
-	// Register the run before starting the goroutine so it is immediately
-	// visible to any polling callers.
-	h.runs.Create(runID, name, cancel)
-	h.history.Create(runID, name, def.Model, req.Message, toolNames, cancel)
-
 	// Connect any ephemeral MCP servers provided in the request.
 	// They are closed once the run goroutine exits, regardless of outcome.
 	ephemeral := make([]*mcpclient.EphemeralConn, 0, len(req.MCPServers))
@@ -210,10 +202,7 @@ func (h *Handler) runAgent(w http.ResponseWriter, r *http.Request) {
 			for _, c := range ephemeral {
 				c.Close()
 			}
-			// Remove the runs we already registered since we're failing early.
 			errMsg := "failed to connect MCP server " + srv.Name + ": " + err.Error()
-			h.runs.SetFailed(runID, errMsg)
-			h.history.SetFailed(runID, errMsg)
 			writeJSON(w, http.StatusBadGateway, map[string]string{
 				"error": errMsg,
 			})
@@ -221,6 +210,15 @@ func (h *Handler) runAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		ephemeral = append(ephemeral, conn)
 	}
+
+	// Build tool list for history after ephemeral connections are established
+	// so dynamic tools are included.
+	toolNames := h.agentRuntime.GetToolNames(def, ephemeral)
+
+	// Register the run before starting the goroutine so it is immediately
+	// visible to any polling callers.
+	h.runs.Create(runID, name, cancel)
+	h.history.Create(runID, name, def.Model, req.Message, toolNames, cancel)
 
 	// Snapshot inputs before handing off to the goroutine.
 	defSnap := def
