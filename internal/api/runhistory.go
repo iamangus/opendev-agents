@@ -13,15 +13,22 @@ const (
 	ToolCallStatusError   ToolCallStatus = "error"
 )
 
+// ToolCallSummary holds the AI-generated summary of a tool call.
+type ToolCallSummary struct {
+	Reason  string `json:"reason"`
+	Outcome string `json:"outcome"`
+}
+
 type ToolCallRecord struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Arguments string         `json:"arguments"`
-	Result    string         `json:"result,omitempty"`
-	Status    ToolCallStatus `json:"status"`
-	Error     string         `json:"error,omitempty"`
-	StartedAt time.Time      `json:"started_at"`
-	Duration  time.Duration  `json:"duration"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	Arguments string           `json:"arguments"`
+	Result    string           `json:"result,omitempty"`
+	Status    ToolCallStatus   `json:"status"`
+	Error     string           `json:"error,omitempty"`
+	StartedAt time.Time        `json:"started_at"`
+	Duration  time.Duration    `json:"duration"`
+	Summary   *ToolCallSummary `json:"summary,omitempty"`
 }
 
 type TurnRecord struct {
@@ -251,4 +258,24 @@ func (m *HistoryManager) ListAgents() []string {
 		agents = append(agents, a)
 	}
 	return agents
+}
+
+// SetToolCallSummary finds the tool call record by ID (searching all turns)
+// and sets its Summary field. Safe to call from a goroutine after the turn
+// has been committed.
+func (m *HistoryManager) SetToolCallSummary(runID, toolCallID string, s ToolCallSummary) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	h, ok := m.runs[runID]
+	if !ok {
+		return
+	}
+	for i := range h.Turns {
+		for j := range h.Turns[i].ToolCalls {
+			if h.Turns[i].ToolCalls[j].ID == toolCallID {
+				h.Turns[i].ToolCalls[j].Summary = &s
+				return
+			}
+		}
+	}
 }
