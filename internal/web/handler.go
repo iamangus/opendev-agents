@@ -680,6 +680,11 @@ func (h *Handler) cloneAgent(w http.ResponseWriter, r *http.Request) {
 
 	clone := *src
 	clone.Name = cloneName
+	clone.Tools = append([]string(nil), src.Tools...)
+	if src.StructuredOutput != nil {
+		so := *src.StructuredOutput
+		clone.StructuredOutput = &so
+	}
 	if err := h.store.SaveDefinition(&clone); err != nil {
 		slog.Error("failed to clone agent", "source", name, "clone", cloneName, "error", err)
 		http.Error(w, "failed to clone", http.StatusInternalServerError)
