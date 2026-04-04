@@ -10,17 +10,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Login to github docker Registry
-      run: docker login docker.pkg.github.com -u iamangus -p ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v4
+    - name: Login to GitHub Container Registry
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
     - name: Set Date based var for use in tag
       id: vars
-      run: echo ::set-output name=tag::$(echo $(date +%s))
+      run: echo "tag=$(date +%s)" >> "$GITHUB_OUTPUT"
     - name: Build the tagged Docker image
-      run: docker build . --file Dockerfile --tag docker.pkg.github.com/iamangus/agentfoundry/agentfile:latest
+      run: docker build . --file Dockerfile --tag ghcr.io/${{ github.repository }}:latest
     - name: Push the latest Docker image
-      run: docker push docker.pkg.github.com/iamangus/agentfoundry/agentfile:latest
+      run: docker push ghcr.io/${{ github.repository }}:latest
     - name: retag and push
-      run: docker tag docker.pkg.github.com/iamangus/agentfoundry/agentfile:latest docker.pkg.github.com/iamangus/agentfoundry/agentfile:${{steps.vars.outputs.tag}}
+      run: docker tag ghcr.io/${{ github.repository }}:latest ghcr.io/${{ github.repository }}:${{steps.vars.outputs.tag}}
     - name: Push the tagged Docker image
-      run: docker push docker.pkg.github.com/iamangus/agentfoundry/agentfile:${{steps.vars.outputs.tag}}
+      run: docker push ghcr.io/${{ github.repository }}:${{steps.vars.outputs.tag}}
