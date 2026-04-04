@@ -275,12 +275,7 @@ function startRunStream(runId, container) {
     bubble.className = "bubble bubble-bot";
     bubble.style.whiteSpace = "pre-wrap";
     row.appendChild(bubble);
-    var anchor = messageList.querySelector(".scroll-anchor");
-    if (anchor) {
-      messageList.insertBefore(row, anchor);
-    } else {
-      messageList.appendChild(row);
-    }
+    messageList.appendChild(row);
     bubbles.push({ row: row, bubble: bubble });
     currentBubble = bubble;
     scrollToBottom();
@@ -288,10 +283,7 @@ function startRunStream(runId, container) {
   }
 
   function scrollToBottom() {
-    var anchor = messageList.querySelector(".scroll-anchor");
-    if (anchor) {
-      anchor.scrollIntoView({ block: "end", behavior: "smooth" });
-    }
+    messageList.scrollTop = messageList.scrollHeight;
   }
 
   es.addEventListener("response_start", function(e) {
