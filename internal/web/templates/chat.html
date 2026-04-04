@@ -303,18 +303,24 @@ function startRunStream(runId, container) {
   es.addEventListener("status", function(e) {
   });
 
-  es.addEventListener("done", function(e) {
-    es.close();
+  function finalizeLastBubble(htmlData) {
     var wrapper = document.createElement("div");
-    wrapper.innerHTML = e.data;
-    var newEl = wrapper.firstElementChild;
-    var replacement = newEl ? newEl.outerHTML : e.data;
+    wrapper.innerHTML = htmlData;
+    var inner = wrapper.querySelector(".msg-assistant");
+    if (!inner) {
+      inner = wrapper.firstElementChild;
+    }
+    var content = inner ? inner.innerHTML : htmlData;
 
     if (bubbles.length > 0) {
       var last = bubbles[bubbles.length - 1];
-      last.row.outerHTML = replacement;
+      last.bubble.innerHTML = content;
+      last.bubble.style.whiteSpace = "";
+    } else if (currentBubble) {
+      currentBubble.innerHTML = content;
+      currentBubble.style.whiteSpace = "";
     } else {
-      container.outerHTML = replacement;
+      container.outerHTML = htmlData;
     }
 
     for (var i = 0; i < bubbles.length - 1; i++) {
@@ -323,31 +329,21 @@ function startRunStream(runId, container) {
     }
 
     container.remove();
+  }
+
+  es.addEventListener("done", function(e) {
+    es.close();
+    finalizeLastBubble(e.data);
   });
 
   es.addEventListener("error", function(e) {
     if (es.readyState === EventSource.CLOSED) return;
     es.close();
     if (e.data) {
-      var wrapper = document.createElement("div");
-      wrapper.innerHTML = e.data;
-      var newEl = wrapper.firstElementChild;
-      var replacement = newEl ? newEl.outerHTML : e.data;
-
-      if (bubbles.length > 0) {
-        var last = bubbles[bubbles.length - 1];
-        last.row.outerHTML = replacement;
-      } else {
-        container.outerHTML = replacement;
-      }
-
-      for (var i = 0; i < bubbles.length - 1; i++) {
-        bubbles[i].bubble.style.whiteSpace = "";
-        bubbles[i].bubble.className = "bubble bubble-bot";
-      }
+      finalizeLastBubble(e.data);
+    } else {
+      container.remove();
     }
-
-    container.remove();
   });
 
   es.onerror = function() {
