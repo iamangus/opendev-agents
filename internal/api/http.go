@@ -13,6 +13,7 @@ import (
 	"github.com/angoo/agentfile/internal/llm"
 	"github.com/angoo/agentfile/internal/mcpclient"
 	"github.com/angoo/agentfile/internal/registry"
+	"github.com/angoo/agentfile/internal/stream"
 	"github.com/angoo/agentfile/internal/temporal"
 )
 
@@ -30,14 +31,16 @@ type Handler struct {
 	reg      *registry.Registry
 	pool     *mcpclient.Pool
 	temporal *temporal.Client
+	streams  *stream.Manager
 }
 
-func NewHandler(reg *registry.Registry, pool *mcpclient.Pool, store DefinitionStore, temporalClient *temporal.Client) *Handler {
+func NewHandler(reg *registry.Registry, pool *mcpclient.Pool, store DefinitionStore, temporalClient *temporal.Client, streams *stream.Manager) *Handler {
 	return &Handler{
 		store:    store,
 		reg:      reg,
 		pool:     pool,
 		temporal: temporalClient,
+		streams:  streams,
 	}
 }
 
@@ -52,6 +55,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tools", h.listTools)
 	mux.HandleFunc("GET /api/v1/status", h.getStatus)
 	mux.HandleFunc("POST /api/internal/mcp/call", h.mcpProxyCall)
+	mux.HandleFunc("POST /api/internal/streams/{id}/tokens", h.publishStreamToken)
 
 	slog.Info("API routes registered", "prefix", "/api/v1")
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/angoo/agentfile/internal/config"
 	"github.com/angoo/agentfile/internal/llm"
 	"github.com/angoo/agentfile/internal/mcpclient"
+	"github.com/angoo/agentfile/internal/stream"
 	"github.com/angoo/agentfile/internal/temporal"
 )
 
@@ -47,75 +48,17 @@ type Session struct {
 	ActiveRunID string
 }
 
-type runEvent struct {
-	typ  string
-	data string
-}
-
-type agentRun struct {
-	mu     sync.Mutex
-	events []runEvent
-	subs   []chan runEvent
-	closed bool
-}
-
-func (r *agentRun) publish(evt runEvent) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.events = append(r.events, evt)
-	for _, ch := range r.subs {
-		select {
-		case ch <- evt:
-		default:
-		}
-	}
-	if evt.typ == "done" || evt.typ == "error" {
-		r.closed = true
-		for _, ch := range r.subs {
-			close(ch)
-		}
-		r.subs = nil
-	}
-}
-
-func (r *agentRun) subscribe() (chan runEvent, func()) {
-	ch := make(chan runEvent, 64)
-	r.mu.Lock()
-	for _, evt := range r.events {
-		ch <- evt
-	}
-	if r.closed {
-		close(ch)
-		r.mu.Unlock()
-		return ch, func() {}
-	}
-	r.subs = append(r.subs, ch)
-	r.mu.Unlock()
-
-	unsubscribe := func() {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		for i, s := range r.subs {
-			if s == ch {
-				r.subs = append(r.subs[:i], r.subs[i+1:]...)
-				break
-			}
-		}
-	}
-	return ch, unsubscribe
-}
-
 type Handler struct {
 	store    DefinitionStore
 	pool     *mcpclient.Pool
 	temporal *temporal.Client
+	streams  *stream.Manager
 	tmpl     *template.Template
 	mu       sync.Mutex
 	sessions map[string]*Session
-	runs     map[string]*agentRun
 }
 
-func NewHandler(store DefinitionStore, temporalClient *temporal.Client, pool *mcpclient.Pool) (*Handler, error) {
+func NewHandler(store DefinitionStore, temporalClient *temporal.Client, pool *mcpclient.Pool, streams *stream.Manager) (*Handler, error) {
 	funcMap := template.FuncMap{
 		"renderMarkdown": renderMarkdown,
 		"dict": func(kvs ...any) map[string]any {
@@ -164,9 +107,9 @@ func NewHandler(store DefinitionStore, temporalClient *temporal.Client, pool *mc
 		store:    store,
 		pool:     pool,
 		temporal: temporalClient,
+		streams:  streams,
 		tmpl:     tmpl,
 		sessions: make(map[string]*Session),
-		runs:     make(map[string]*agentRun),
 	}, nil
 }
 
@@ -301,10 +244,9 @@ func (h *Handler) postMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runID := newID()
-	run := &agentRun{}
+	h.streams.Create(runID)
 
 	h.mu.Lock()
-	h.runs[runID] = run
 	session.ActiveRunID = runID
 	h.mu.Unlock()
 
@@ -320,10 +262,10 @@ func (h *Handler) postMessage(w http.ResponseWriter, r *http.Request) {
 		var updatedHistory []llm.Message
 
 		if def == nil {
-			run.publish(runEvent{typ: "error", data: fmt.Sprintf(
+			h.streams.PublishError(runID, fmt.Sprintf(
 				`<div class="flex justify-start"><div class="msg-assistant msg-error">%s</div></div>`,
 				template.HTMLEscapeString(fmt.Sprintf("Error: agent %q not found", session.AgentName)),
-			)})
+			))
 
 			h.mu.Lock()
 			session.Messages = append(session.Messages, Message{
@@ -337,19 +279,18 @@ func (h *Handler) postMessage(w http.ResponseWriter, r *http.Request) {
 			h.mu.Unlock()
 
 			time.AfterFunc(30*time.Second, func() {
-				h.mu.Lock()
-				delete(h.runs, runID)
-				h.mu.Unlock()
+				h.streams.Delete(runID)
 			})
 			return
 		}
 
-		run.publish(runEvent{typ: "status", data: "Thinking..."})
+		h.streams.PublishStatus(runID, "Thinking...")
 
 		agentResult, err := h.temporal.ExecuteWorkflowSync(ctx, temporal.RunAgentParams{
 			AgentName: def.Name,
 			Message:   content,
 			History:   history,
+			StreamID:  runID,
 		})
 		if err != nil {
 			slog.Error("agent run failed", "agent", session.AgentName, "error", err)
@@ -369,12 +310,10 @@ func (h *Handler) postMessage(w http.ResponseWriter, r *http.Request) {
 				`<div class="flex justify-start"><div class="msg-assistant msg-error">%s</div></div>`,
 				template.HTMLEscapeString("Error: "+err.Error()),
 			)
-			run.publish(runEvent{typ: "done", data: errHTML})
+			h.streams.PublishDone(runID, errHTML)
 
 			time.AfterFunc(30*time.Second, func() {
-				h.mu.Lock()
-				delete(h.runs, runID)
-				h.mu.Unlock()
+				h.streams.Delete(runID)
 			})
 			return
 		}
@@ -398,12 +337,10 @@ func (h *Handler) postMessage(w http.ResponseWriter, r *http.Request) {
 			`<div class="flex justify-start"><div class="msg-assistant">%s</div></div>`,
 			string(renderMarkdown(result)),
 		)
-		run.publish(runEvent{typ: "done", data: doneHTML})
+		h.streams.PublishDone(runID, doneHTML)
 
 		time.AfterFunc(30*time.Second, func() {
-			h.mu.Lock()
-			delete(h.runs, runID)
-			h.mu.Unlock()
+			h.streams.Delete(runID)
 		})
 
 		_ = result
@@ -450,11 +387,8 @@ func (h *Handler) activeRun(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) runEvents(w http.ResponseWriter, r *http.Request) {
 	runID := r.PathValue("id")
 
-	h.mu.Lock()
-	run := h.runs[runID]
-	h.mu.Unlock()
-
-	if run == nil {
+	s := h.streams.Get(runID)
+	if s == nil {
 		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
@@ -469,7 +403,7 @@ func (h *Handler) runEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, unsubscribe := run.subscribe()
+	ch, unsubscribe := s.Subscribe()
 	defer unsubscribe()
 
 	for {
@@ -478,15 +412,20 @@ func (h *Handler) runEvents(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			switch evt.typ {
+			switch evt.Type {
 			case "status":
-				fmt.Fprintf(w, "event: status\ndata: %s\n\n", template.HTMLEscapeString(evt.data))
+				fmt.Fprintf(w, "event: status\ndata: %s\n\n", template.HTMLEscapeString(evt.Data))
+			case "token":
+				fmt.Fprintf(w, "event: token\ndata: %s\n\n", template.HTMLEscapeString(evt.Data))
 			case "done":
-				sseData := strings.ReplaceAll(evt.data, "\n", "\ndata: ")
+				sseData := strings.ReplaceAll(evt.Data, "\n", "\ndata: ")
 				fmt.Fprintf(w, "event: done\ndata: %s\n\n", sseData)
+			case "error":
+				sseData := strings.ReplaceAll(evt.Data, "\n", "\ndata: ")
+				fmt.Fprintf(w, "event: error\ndata: %s\n\n", sseData)
 			}
 			flusher.Flush()
-			if evt.typ == "done" {
+			if evt.Type == "done" || evt.Type == "error" {
 				return
 			}
 		case <-r.Context().Done():

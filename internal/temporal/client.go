@@ -24,6 +24,7 @@ type RunAgentParams struct {
 	History        []llm.Message            `json:"history,omitempty"`
 	MCPServers     []mcpclient.ServerConfig `json:"mcp_servers,omitempty"`
 	ResponseSchema *config.StructuredOutput `json:"response_schema,omitempty"`
+	StreamID       string                   `json:"stream_id,omitempty"`
 }
 
 type RunAgentResult struct {

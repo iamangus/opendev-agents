@@ -15,6 +15,7 @@ import (
 	mcpserver "github.com/angoo/agentfile/internal/mcp"
 	"github.com/angoo/agentfile/internal/mcpclient"
 	"github.com/angoo/agentfile/internal/registry"
+	"github.com/angoo/agentfile/internal/stream"
 	"github.com/angoo/agentfile/internal/temporal"
 	"github.com/angoo/agentfile/internal/web"
 )
@@ -80,10 +81,12 @@ func main() {
 		mcpManager.RefreshAll()
 	})
 
-	apiHandler := api.NewHandler(reg, pool, loader, temporalClient)
+	streams := stream.NewManager()
+
+	apiHandler := api.NewHandler(reg, pool, loader, temporalClient, streams)
 	apiHandler.RegisterRoutes(mux)
 
-	webHandler, err := web.NewHandler(loader, temporalClient, pool)
+	webHandler, err := web.NewHandler(loader, temporalClient, pool, streams)
 	if err != nil {
 		slog.Error("failed to create web UI handler", "error", err)
 		os.Exit(1)

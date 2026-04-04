@@ -261,6 +261,62 @@
   </main>
 </div>
 
+<script>
+function startRunStream(runId, container) {
+  var es = new EventSource("/chat/runs/" + runId + "/events");
+  var bubble = null;
+
+  es.addEventListener("token", function(e) {
+    if (!bubble) {
+      bubble = document.createElement("div");
+      bubble.className = "bubble bubble-bot";
+      bubble.style.whiteSpace = "pre-wrap";
+      container.innerHTML = "";
+      container.appendChild(bubble);
+    }
+    bubble.textContent += e.data;
+    var anchor = container.nextElementSibling;
+    if (anchor && anchor.classList.contains("scroll-anchor")) {
+      anchor.scrollIntoView({ block: "end", behavior: "smooth" });
+    }
+  });
+
+  es.addEventListener("status", function(e) {
+  });
+
+  es.addEventListener("done", function(e) {
+    es.close();
+    var wrapper = document.createElement("div");
+    wrapper.innerHTML = e.data;
+    var newEl = wrapper.firstElementChild;
+    if (newEl) {
+      container.outerHTML = newEl.outerHTML;
+    } else {
+      container.outerHTML = e.data;
+    }
+  });
+
+  es.addEventListener("error", function(e) {
+    if (es.readyState === EventSource.CLOSED) return;
+    es.close();
+    if (e.data) {
+      var wrapper = document.createElement("div");
+      wrapper.innerHTML = e.data;
+      var newEl = wrapper.firstElementChild;
+      if (newEl) {
+        container.outerHTML = newEl.outerHTML;
+      } else {
+        container.outerHTML = e.data;
+      }
+    }
+  });
+
+  es.onerror = function() {
+    es.close();
+  };
+}
+</script>
+
 </body>
 </html>
 {{end}}
@@ -303,17 +359,21 @@
   <div id="message-list" class="chat-body">
     {{template "messages" .Current.Messages}}
     {{if .ActiveRunID}}
-    <div id="run-{{.ActiveRunID}}"
-         hx-ext="sse"
-         sse-connect="/chat/runs/{{.ActiveRunID}}/events"
-         sse-swap="done"
-         hx-swap="outerHTML">
-      <div class="msg-row msg-left">
-        <div class="thinking-bubble">
-          <div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>
-        </div>
+    <div id="run-{{.ActiveRunID}}" class="msg-row msg-left">
+      <div class="thinking-bubble">
+        <div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>
       </div>
     </div>
+    <script>
+      (function(){
+        var runId = "{{.ActiveRunID}}";
+        var container = document.getElementById("run-" + runId);
+        if (container && !container._streamStarted) {
+          container._streamStarted = true;
+          startRunStream(runId, container);
+        }
+      })();
+    </script>
     {{end}}
     <div class="scroll-anchor"></div>
   </div>
@@ -392,15 +452,19 @@
     <div class="bubble bubble-user">{{.Content}}</div>
   </div>
 </div>
-<div id="run-{{.RunID}}"
-     hx-ext="sse"
-     sse-connect="/chat/runs/{{.RunID}}/events"
-     sse-swap="done"
-     hx-swap="outerHTML">
-  <div class="msg-row msg-left">
-    <div class="thinking-bubble">
-      <div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>
-    </div>
+<div id="run-{{.RunID}}" class="msg-row msg-left">
+  <div class="thinking-bubble">
+    <div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>
   </div>
 </div>
+<script>
+  (function(){
+    var runId = "{{.RunID}}";
+    var container = document.getElementById("run-" + runId);
+    if (container && !container._streamStarted) {
+      container._streamStarted = true;
+      startRunStream(runId, container);
+    }
+  })();
+</script>
 {{end}}
