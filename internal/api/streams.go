@@ -28,6 +28,7 @@ func (h *Handler) publishStreamToken(w http.ResponseWriter, r *http.Request) {
 
 type streamEventRequest struct {
 	Type string `json:"type"`
+	Data string `json:"data,omitempty"`
 }
 
 func (h *Handler) publishStreamEvent(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +44,6 @@ func (h *Handler) publishStreamEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.streams.PublishEvent(streamID, req.Type)
+	h.streams.PublishEvent(streamID, req.Type, req.Data)
 	w.WriteHeader(http.StatusNoContent)
 }

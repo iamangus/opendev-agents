@@ -164,7 +164,10 @@
     .thinking-bubble {
       background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 4px;
       padding: 14px 18px; border-radius: 14px;
-      display: flex; align-items: center; gap: 5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .thinking-label {
+      font-size: 0.85rem; color: var(--text-muted);
     }
     .thinking-dot {
       width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted);
@@ -267,6 +270,7 @@ function startRunStream(runId, container) {
   var messageList = document.getElementById("message-list");
   var bubbles = [];
   var currentBubble = null;
+  var statusEl = null;
 
   function createBubble() {
     var row = document.createElement("div");
@@ -278,8 +282,30 @@ function startRunStream(runId, container) {
     messageList.appendChild(row);
     bubbles.push({ row: row, bubble: bubble });
     currentBubble = bubble;
+    removeStatus();
     scrollToBottom();
     return bubble;
+  }
+
+  function showStatus(text) {
+    if (currentBubble) {
+      container.innerHTML = "";
+    }
+    if (statusEl) {
+      var label = statusEl.querySelector(".thinking-label");
+      if (label) label.textContent = text;
+      return;
+    }
+    container.innerHTML = '<div class="thinking-bubble"><span class="thinking-label">' + text + '</span><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div></div>';
+    statusEl = container.firstElementChild;
+    scrollToBottom();
+  }
+
+  function removeStatus() {
+    if (statusEl && statusEl.parentNode) {
+      statusEl.remove();
+      statusEl = null;
+    }
   }
 
   function scrollToBottom() {
@@ -288,6 +314,7 @@ function startRunStream(runId, container) {
 
   es.addEventListener("response_start", function(e) {
     container.innerHTML = "";
+    statusEl = null;
     createBubble();
   });
 
@@ -301,6 +328,7 @@ function startRunStream(runId, container) {
   });
 
   es.addEventListener("status", function(e) {
+    showStatus(e.data);
   });
 
   function finalizeLastBubble(htmlData) {
@@ -328,6 +356,7 @@ function startRunStream(runId, container) {
       bubbles[i].bubble.className = "bubble bubble-bot";
     }
 
+    removeStatus();
     container.remove();
   }
 
@@ -342,6 +371,7 @@ function startRunStream(runId, container) {
     if (e.data) {
       finalizeLastBubble(e.data);
     } else {
+      removeStatus();
       container.remove();
     }
   });
