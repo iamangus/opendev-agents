@@ -93,7 +93,8 @@ func main() {
 		authMW = auth.NewMiddleware(jwt, keyStore, groups, authCfg)
 		slog.Info("auth middleware enabled")
 	} else {
-		slog.Info("auth disabled (AUTH_ISSUER not set)")
+		slog.Info("auth disabled (AUTH_ISSUER not set), running in open access mode")
+		authMW = auth.NewMiddleware(nil, nil, nil, authCfg)
 	}
 
 	reg := registry.New()

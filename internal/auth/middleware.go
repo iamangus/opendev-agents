@@ -34,7 +34,11 @@ func (m *Middleware) Handler(exemptPaths ...string) func(http.Handler) http.Hand
 			}
 
 			if !m.config.Enabled() {
-				next.ServeHTTP(w, r)
+				ctx := NewContext(r.Context(), &AuthContext{
+					Subject:       "anonymous",
+					IsGlobalAdmin: true,
+				})
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
