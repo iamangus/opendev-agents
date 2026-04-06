@@ -160,6 +160,10 @@ func (h *Handler) createAgent(w http.ResponseWriter, r *http.Request) {
 		def.Scope = string(config.ScopeUser)
 	}
 
+	if config.Scope(def.Scope) != config.ScopeTeam {
+		def.Team = ""
+	}
+
 	if err := def.Validate(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -244,6 +248,10 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 	if err := def.Validate(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
+	}
+
+	if config.Scope(def.Scope) != config.ScopeTeam {
+		def.Team = ""
 	}
 
 	if def.Name != name {
