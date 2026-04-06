@@ -7,6 +7,7 @@ type Config struct {
 	Audience      string
 	RolesClaim    string
 	GroupsClaim   string
+	TeamPrefix    string
 	AdminRoles    []string
 	TeamAdminRole string
 	AccessRoles   []string
@@ -31,6 +32,7 @@ func LoadConfig() *Config {
 	if groupsClaim == "" {
 		groupsClaim = "groups"
 	}
+	teamPrefix := os.Getenv("AUTH_TEAM_PREFIX")
 
 	adminRoles := splitEnv("AUTH_ADMIN_ROLES", "opendev-admin")
 	teamAdminRole := os.Getenv("AUTH_TEAM_ADMIN_ROLE")
@@ -47,6 +49,7 @@ func LoadConfig() *Config {
 		Audience:      audience,
 		RolesClaim:    rolesClaim,
 		GroupsClaim:   groupsClaim,
+		TeamPrefix:    teamPrefix,
 		AdminRoles:    adminRoles,
 		TeamAdminRole: teamAdminRole,
 		AccessRoles:   accessRoles,

@@ -125,7 +125,16 @@ func (m *Middleware) authenticateAPIKey(ctx context.Context, fullKey string) (*A
 	teams := make([]string, 0, len(groups))
 	for _, g := range groups {
 		if g != "" && !strings.Contains(g, "/") {
-			teams = append(teams, g)
+			team := g
+			if m.config.TeamPrefix != "" {
+				if !strings.HasPrefix(team, m.config.TeamPrefix) {
+					continue
+				}
+				team = strings.TrimPrefix(team, m.config.TeamPrefix)
+			}
+			if team != "" {
+				teams = append(teams, team)
+			}
 		}
 	}
 

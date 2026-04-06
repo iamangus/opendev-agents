@@ -82,7 +82,15 @@ func (v *JWTValidator) buildAuthContext(claims map[string]any) (*AuthContext, er
 	for _, g := range groups {
 		team := strings.TrimPrefix(g, "/")
 		if team != "" && !strings.Contains(team, "/") {
-			teams = append(teams, team)
+			if v.config.TeamPrefix != "" {
+				if !strings.HasPrefix(team, v.config.TeamPrefix) {
+					continue
+				}
+				team = strings.TrimPrefix(team, v.config.TeamPrefix)
+			}
+			if team != "" {
+				teams = append(teams, team)
+			}
 		}
 	}
 
