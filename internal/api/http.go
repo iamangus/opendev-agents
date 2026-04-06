@@ -219,8 +219,27 @@ func (h *Handler) updateAgent(w http.ResponseWriter, r *http.Request) {
 
 	def.Kind = config.KindAgent
 	def.CreatedBy = existing.CreatedBy
-	def.Scope = existing.Scope
-	def.Team = existing.Team
+
+	switch config.Scope(def.Scope) {
+	case config.ScopeGlobal:
+		if !ac.IsGlobalAdmin {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "global admin required"})
+			return
+		}
+	case config.ScopeTeam:
+		if !ac.IsMemberOfTeam(def.Team) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "not a member of team " + def.Team})
+			return
+		}
+	case config.ScopeUser, "":
+	}
+
+	if existing.Scope == string(config.ScopeTeam) && def.Scope != string(config.ScopeTeam) {
+		if existing.CreatedBy != ac.Subject && !ac.IsGlobalAdmin {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "only the creator can change a team agent to personal"})
+			return
+		}
+	}
 
 	if err := def.Validate(); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
