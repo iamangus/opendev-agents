@@ -59,8 +59,9 @@ type connection struct {
 // Pool manages connections to external MCP servers and provides
 // tool discovery and proxied tool invocation.
 type Pool struct {
-	mu    sync.RWMutex
-	conns map[string]*connection // server name -> connection
+	mu        sync.RWMutex
+	conns     map[string]*connection // server name -> persistent connection
+	ephemeral map[string]*connection // server name -> ephemeral connection (shadows conns)
 
 	// onChange is called whenever the tool list changes (from any server).
 	onChange func()
@@ -69,7 +70,8 @@ type Pool struct {
 // NewPool creates a new MCP client pool.
 func NewPool() *Pool {
 	return &Pool{
-		conns: make(map[string]*connection),
+		conns:     make(map[string]*connection),
+		ephemeral: make(map[string]*connection),
 	}
 }
 
@@ -216,16 +218,36 @@ func (p *Pool) refreshTools(serverName string) {
 	}
 }
 
+func (p *Pool) getConnection(name string) (*connection, bool) {
+	if conn, ok := p.ephemeral[name]; ok {
+		return conn, true
+	}
+	conn, ok := p.conns[name]
+	return conn, ok
+}
+
+func (p *Pool) allConnections() map[string]*connection {
+	merged := make(map[string]*connection, len(p.conns)+len(p.ephemeral))
+	for k, v := range p.conns {
+		merged[k] = v
+	}
+	for k, v := range p.ephemeral {
+		merged[k] = v
+	}
+	return merged
+}
+
 // ListAllTools returns all discovered tools across all connected servers.
+// Ephemeral servers shadow persistent servers with the same name.
 func (p *Pool) ListAllTools() []DiscoveredTool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	var all []DiscoveredTool
-	for _, conn := range p.conns {
+	for name, conn := range p.allConnections() {
 		for _, t := range conn.tools {
 			all = append(all, DiscoveredTool{
-				ServerName: conn.config.Name,
+				ServerName: name,
 				Tool:       t,
 			})
 		}
@@ -234,11 +256,12 @@ func (p *Pool) ListAllTools() []DiscoveredTool {
 }
 
 // ListServerTools returns the tools from a specific server.
+// Checks ephemeral first, then persistent.
 func (p *Pool) ListServerTools(serverName string) ([]DiscoveredTool, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	conn, ok := p.conns[serverName]
+	conn, ok := p.getConnection(serverName)
 	if !ok {
 		return nil, false
 	}
@@ -254,11 +277,12 @@ func (p *Pool) ListServerTools(serverName string) ([]DiscoveredTool, bool) {
 }
 
 // GetTool looks up a tool by its qualified name ("server.tool").
+// Checks ephemeral first, then persistent.
 func (p *Pool) GetTool(serverName, toolName string) (*DiscoveredTool, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	conn, ok := p.conns[serverName]
+	conn, ok := p.getConnection(serverName)
 	if !ok {
 		return nil, false
 	}
@@ -275,9 +299,10 @@ func (p *Pool) GetTool(serverName, toolName string) (*DiscoveredTool, bool) {
 }
 
 // CallTool invokes a tool on the appropriate external MCP server.
+// Checks ephemeral first, then persistent.
 func (p *Pool) CallTool(ctx context.Context, serverName, toolName string, arguments map[string]any) (*mcp.CallToolResult, error) {
 	p.mu.RLock()
-	conn, ok := p.conns[serverName]
+	conn, ok := p.getConnection(serverName)
 	p.mu.RUnlock()
 
 	if !ok {
@@ -297,13 +322,14 @@ func (p *Pool) CallTool(ctx context.Context, serverName, toolName string, argume
 	return result, nil
 }
 
-// ListServerNames returns the names of all connected servers.
+// ListServerNames returns the names of all connected servers (persistent + ephemeral).
 func (p *Pool) ListServerNames() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	names := make([]string, 0, len(p.conns))
-	for name := range p.conns {
+	merged := p.allConnections()
+	names := make([]string, 0, len(merged))
+	for name := range merged {
 		names = append(names, name)
 	}
 	return names
@@ -435,7 +461,7 @@ func (p *Pool) RegisterEphemeral(e *EphemeralConn) {
 		tools:  e.tools,
 	}
 	p.mu.Lock()
-	p.conns[e.config.Name] = conn
+	p.ephemeral[e.config.Name] = conn
 	p.mu.Unlock()
 	slog.Info("registered ephemeral MCP server in pool", "name", e.config.Name, "tools", len(e.tools))
 }
@@ -444,12 +470,12 @@ func (p *Pool) RegisterEphemeral(e *EphemeralConn) {
 // underlying connection. If the server was not registered this is a no-op.
 func (p *Pool) UnregisterEphemeral(name string) {
 	p.mu.Lock()
-	conn, ok := p.conns[name]
+	conn, ok := p.ephemeral[name]
 	if !ok {
 		p.mu.Unlock()
 		return
 	}
-	delete(p.conns, name)
+	delete(p.ephemeral, name)
 	p.mu.Unlock()
 	conn.client.Close()
 	slog.Info("unregistered ephemeral MCP server from pool", "name", name)
@@ -460,9 +486,14 @@ func (p *Pool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	for name, conn := range p.ephemeral {
+		slog.Info("closing ephemeral MCP connection", "server", name)
+		conn.client.Close()
+	}
 	for name, conn := range p.conns {
 		slog.Info("closing MCP client connection", "server", name)
 		conn.client.Close()
 	}
+	p.ephemeral = make(map[string]*connection)
 	p.conns = make(map[string]*connection)
 }
